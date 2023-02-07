@@ -43,11 +43,8 @@ namespace ILLink.Tasks
 		/// <summary>
 		///   The names of the assemblies to root. This should contain
 		///   assembly names without an extension, not file names or
-		///   paths. Exactly which parts of the assemblies get rooted
-		///   is subject to change. Currently these get passed to
-		///   illink with "-a", which roots the entry point for
-		///   executables, and everything for libraries. To control
-		///   the behaviour explicitly, set RootMode metadata.
+		///   paths. The default is to root everything in these assemblies.
+		//    For more fine-grained control, set RootMode metadata.
 		/// </summary>
 		[Required]
 		public ITaskItem[] RootAssemblyNames { get; set; }
@@ -60,7 +57,7 @@ namespace ILLink.Tasks
 		public ITaskItem OutputDirectory { get; set; }
 
 		/// <summary>
-		/// The subset of warnings that have to be turned off. 
+		/// The subset of warnings that have to be turned off.
 		/// Maps to '--nowarn'.
 		/// </summary>
 		public string NoWarn { get; set; }
@@ -183,6 +180,12 @@ namespace ILLink.Tasks
 		public bool DumpDependencies { get; set; }
 
 		/// <summary>
+		///   Make illink dump dependencies to the specified file type.
+		///   Maps to '--dependencies-file-format'.
+		/// </summary>
+		public string DependenciesFileFormat { get; set; }
+
+		/// <summary>
 		///   Remove debug symbols from linked assemblies.
 		///   Maps to '-b' if false.
 		///   Default if not specified is to remove symbols, like
@@ -200,6 +203,7 @@ namespace ILLink.Tasks
 		/// <summary>
 		///   Sets the default action for assemblies which have not opted into trimming.
 		///   Maps to '--action'
+		/// </summary>
 		public string DefaultAction { get; set; }
 
 		/// <summary>
@@ -256,7 +260,7 @@ namespace ILLink.Tasks
 
 				var taskDirectory = Path.GetDirectoryName (Assembly.GetExecutingAssembly ().Location);
 				// The linker always runs on .NET Core, even when using desktop MSBuild to host ILLink.Tasks.
-				_illinkPath = Path.Combine (Path.GetDirectoryName (taskDirectory), "net6.0", "illink.dll");
+				_illinkPath = Path.Combine (Path.GetDirectoryName (taskDirectory), "net8.0", "illink.dll");
 				return _illinkPath;
 			}
 			set => _illinkPath = value;
@@ -312,6 +316,23 @@ namespace ILLink.Tasks
 					args.AppendLine ("--singlewarn-");
 			}
 
+			string trimMode = TrimMode switch {
+				"full" => "link",
+				"partial" => "link",
+				var x => x
+			};
+			if (trimMode != null)
+				args.Append ("--trim-mode ").AppendLine (trimMode);
+
+			string defaultAction = TrimMode switch {
+				"full" => "link",
+				"partial" => "copy",
+				_ => DefaultAction
+			};
+			if (defaultAction != null)
+				args.Append ("--action ").AppendLine (defaultAction);
+
+
 			HashSet<string> assemblyNames = new HashSet<string> (StringComparer.OrdinalIgnoreCase);
 			foreach (var assembly in AssemblyPaths) {
 				var assemblyPath = assembly.ItemSpec;
@@ -323,10 +344,20 @@ namespace ILLink.Tasks
 
 				args.Append ("-reference ").AppendLine (Quote (assemblyPath));
 
-				string trimMode = assembly.GetMetadata ("TrimMode");
-				if (!String.IsNullOrEmpty (trimMode)) {
+				string assemblyTrimMode = assembly.GetMetadata ("TrimMode");
+				string isTrimmable = assembly.GetMetadata ("IsTrimmable");
+				if (string.IsNullOrEmpty (assemblyTrimMode)) {
+					if (isTrimmable.Equals ("true", StringComparison.OrdinalIgnoreCase)) {
+						// isTrimmable ~= true
+						assemblyTrimMode = trimMode;
+					} else if (isTrimmable.Equals ("false", StringComparison.OrdinalIgnoreCase)) {
+						// isTrimmable ~= false
+						assemblyTrimMode = "copy";
+					}
+				}
+				if (!string.IsNullOrEmpty (assemblyTrimMode)) {
 					args.Append ("--action ");
-					args.Append (trimMode);
+					args.Append (assemblyTrimMode);
 					args.Append (' ').AppendLine (Quote (assemblyName));
 				}
 
@@ -441,12 +472,6 @@ namespace ILLink.Tasks
 			if (_removeSymbols == false)
 				args.AppendLine ("-b");
 
-			if (TrimMode != null)
-				args.Append ("--trim-mode ").AppendLine (TrimMode);
-
-			if (DefaultAction != null)
-				args.Append ("--action ").AppendLine (DefaultAction);
-
 			if (CustomSteps != null) {
 				foreach (var customStep in CustomSteps) {
 					args.Append ("--custom-step ");
@@ -475,6 +500,10 @@ namespace ILLink.Tasks
 
 			if (DumpDependencies)
 				args.AppendLine ("--dump-dependencies");
+
+			if (DependenciesFileFormat != null) {
+				args.Append ("--dependencies-file-format ").AppendLine (DependenciesFileFormat);
+			}
 
 			return args.ToString ();
 		}

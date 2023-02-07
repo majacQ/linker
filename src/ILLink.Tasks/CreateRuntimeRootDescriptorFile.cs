@@ -51,7 +51,7 @@ namespace ILLink.Tasks
 		[Required]
 		public ITaskItem RuntimeRootDescriptorFilePath { get; set; }
 
-		class ClassMembers
+		sealed class ClassMembers
 		{
 			public bool keepAllFields;
 			public HashSet<string> methods;
@@ -68,7 +68,7 @@ namespace ILLink.Tasks
 			public string FeatureValue { get; }
 			public string FeatureDefault { get; }
 			// Unique value to track the key
-			private readonly String _key;
+			private readonly string _key;
 
 			public FeatureSwitchMembers (string feature, string featureValue, string featureDefault)
 			{
@@ -302,7 +302,7 @@ namespace ILLink.Tasks
 		{
 			XmlDocument doc = new XmlDocument ();
 			doc.Load (iLLinkTrimXmlFilePath);
-			XmlNode linkerNode = doc["linker"];
+			XmlElement linkerNode = doc["linker"];
 
 			if (featureSwitchMembers.Count > 0) {
 				foreach ((var fs, var members) in featureSwitchMembers.Select (kv => (kv.Key, kv.Value))) {
@@ -344,7 +344,7 @@ namespace ILLink.Tasks
 
 		static void AddXmlTypeNode (XmlDocument doc, XmlNode assemblyNode, string typeName, ClassMembers members)
 		{
-			XmlNode typeNode = doc.CreateElement ("type");
+			XmlElement typeNode = doc.CreateElement ("type");
 			XmlAttribute typeFullName = doc.CreateAttribute ("fullname");
 			typeFullName.Value = typeName;
 			typeNode.Attributes.Append (typeFullName);
@@ -423,9 +423,7 @@ namespace ILLink.Tasks
 				members = featureSwitchMembers[featureSwitch.Value][className];
 			}
 
-			if (members.fields == null) {
-				members.fields = new HashSet<string> ();
-			}
+			members.fields ??= new HashSet<string> ();
 			members.fields.Add (fieldName);
 		}
 
@@ -446,9 +444,7 @@ namespace ILLink.Tasks
 				members = featureSwitchMembers[featureSwitch.Value][fullClassName];
 			}
 
-			if (members.methods == null) {
-				members.methods = new HashSet<string> ();
-			}
+			members.methods ??= new HashSet<string> ();
 			members.methods.Add (methodName);
 		}
 
@@ -483,7 +479,7 @@ namespace ILLink.Tasks
 				defineConstants.Add (item.ItemSpec.Trim ());
 		}
 
-		class DefineTracker
+		sealed class DefineTracker
 		{
 			readonly HashSet<string> defineConstants;
 			readonly TaskLoggingHelper log;

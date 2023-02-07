@@ -9,7 +9,6 @@ using ILLink.Shared.DataFlow;
 using ILLink.Shared.TrimAnalysis;
 using ILLink.Shared.TypeSystemProxy;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.FlowAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -34,12 +33,15 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 
 		public TrimAnalysisVisitor (
 			LocalStateLattice<MultiValue, ValueSetLattice<SingleValue>> lattice,
-			OperationBlockAnalysisContext context,
-			ImmutableDictionary<CaptureId, FlowCaptureKind> lValueFlowCaptures
-		) : base (lattice, context, lValueFlowCaptures)
+			IMethodSymbol method,
+			ControlFlowGraph methodCFG,
+			ImmutableDictionary<CaptureId, FlowCaptureKind> lValueFlowCaptures,
+			TrimAnalysisPatternStore trimAnalysisPatterns,
+			InterproceduralState<MultiValue, ValueSetLattice<SingleValue>> interproceduralState
+		) : base (lattice, method, methodCFG, lValueFlowCaptures, interproceduralState)
 		{
 			_multiValueLattice = lattice.Lattice.ValueLattice;
-			TrimAnalysisPatterns = new TrimAnalysisPatternStore (_multiValueLattice);
+			TrimAnalysisPatterns = trimAnalysisPatterns;
 		}
 
 		// Override visitor methods to create tracked values when visiting operations
@@ -99,7 +101,8 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 
 		public override MultiValue VisitParameterReference (IParameterReferenceOperation paramRef, StateValue state)
 		{
-			return paramRef.Parameter.Type.IsTypeInterestingForDataflow () ? new MethodParameterValue (paramRef.Parameter) : TopValue;
+			// Reading from a parameter always returns the same annotated value. We don't track modifications.
+			return GetParameterTargetValue (paramRef.Parameter);
 		}
 
 		public override MultiValue VisitInstanceReference (IInstanceReferenceOperation instanceRef, StateValue state)
@@ -109,9 +112,8 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 
 			// The instance reference operation represents a 'this' or 'base' reference to the containing type,
 			// so we get the annotation from the containing method.
-			// TODO: Check whether the Context.OwningSymbol is the containing type in case we are in a lambda.
 			if (instanceRef.Type != null && instanceRef.Type.IsTypeInterestingForDataflow ())
-				return new MethodThisParameterValue ((IMethodSymbol) Context.OwningSymbol);
+				return new MethodParameterValue (Method, (ParameterIndex) 0, Method.GetDynamicallyAccessedMemberTypes ());
 
 			return TopValue;
 		}
@@ -120,7 +122,11 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 		{
 			var field = fieldRef.Field;
 			switch (field.Name) {
-			case "EmptyTypes" when field.ContainingType.IsTypeOf ("System", "Type"): {
+			case "EmptyTypes" when field.ContainingType.IsTypeOf ("System", "Type"):
+#if DEBUG
+			case "ArrayField" when field.ContainingType.IsTypeOf ("Mono.Linker.Tests.Cases.DataFlow", "WriteArrayField"):
+#endif
+				{
 					return ArrayValue.Create (0);
 				}
 			case "Empty" when field.ContainingType.IsTypeOf ("System", "String"): {
@@ -131,10 +137,7 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 			if (TryGetConstantValue (fieldRef, out var constValue))
 				return constValue;
 
-			if (fieldRef.Field.Type.IsTypeInterestingForDataflow ())
-				return new FieldValue (fieldRef.Field);
-
-			return TopValue;
+			return GetFieldTargetValue (fieldRef.Field);
 		}
 
 		public override MultiValue VisitTypeOf (ITypeOfOperation typeOfOperation, StateValue state)
@@ -176,6 +179,16 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 		// - assignments
 		// - method calls
 		// - value returned from a method
+
+		public override MultiValue GetFieldTargetValue (IFieldSymbol field)
+		{
+			return field.Type.IsTypeInterestingForDataflow () ? new FieldValue (field) : TopValue;
+		}
+
+		public override MultiValue GetParameterTargetValue (IParameterSymbol parameter)
+		{
+			return parameter.Type.IsTypeInterestingForDataflow () ? new MethodParameterValue (parameter) : TopValue;
+		}
 
 		public override void HandleAssignment (MultiValue source, MultiValue target, IOperation operation)
 		{
@@ -238,9 +251,11 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 			//   to noise). Linker has the same problem currently: https://github.com/dotnet/linker/issues/1952
 
 			var diagnosticContext = DiagnosticContext.CreateDisabled ();
-			var handleCallAction = new HandleCallAction (diagnosticContext, Context.OwningSymbol, operation);
+			var handleCallAction = new HandleCallAction (diagnosticContext, Method, operation);
+			MethodProxy method = new (calledMethod);
+			var intrinsicId = Intrinsics.GetIntrinsicIdForMethod (method);
 
-			if (!handleCallAction.Invoke (new MethodProxy (calledMethod), instance, arguments, out MultiValue methodReturnValue, out var intrinsicId)) {
+			if (!handleCallAction.Invoke (method, instance, arguments, intrinsicId, out MultiValue methodReturnValue)) {
 				switch (intrinsicId) {
 				case IntrinsicId.Array_Empty:
 					methodReturnValue = ArrayValue.Create (0);
@@ -265,7 +280,7 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 				instance,
 				arguments,
 				operation,
-				Context.OwningSymbol));
+				Method));
 
 			foreach (var argument in arguments) {
 				foreach (var argumentValue in argument) {
@@ -279,9 +294,8 @@ namespace ILLink.RoslynAnalyzer.TrimAnalysis
 
 		public override void HandleReturnValue (MultiValue returnValue, IOperation operation)
 		{
-			var associatedMethod = (IMethodSymbol) Context.OwningSymbol;
-			if (associatedMethod.ReturnType.IsTypeInterestingForDataflow ()) {
-				var returnParameter = new MethodReturnValue (associatedMethod);
+			if (Method.ReturnType.IsTypeInterestingForDataflow ()) {
+				var returnParameter = new MethodReturnValue (Method);
 
 				TrimAnalysisPatterns.Add (
 					new TrimAnalysisAssignmentPattern (returnValue, returnParameter, operation),

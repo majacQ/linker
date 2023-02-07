@@ -5,13 +5,16 @@ using System.Diagnostics;
 using ILLink.Shared.DataFlow;
 using ILLink.Shared.TypeSystemProxy;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared.TrimAnalysis
 {
 	/// <summary>
 	/// This represents a Nullable<T> where T is a known SystemTypeValue.
 	/// It is necessary to track the underlying type to propagate DynamicallyAccessedMembers annotations to the underlying type when applied to a Nullable.
 	/// </summary>
-	sealed record NullableSystemTypeValue : SingleValue
+	internal sealed record NullableSystemTypeValue : SingleValue
 	{
 		public NullableSystemTypeValue (in TypeProxy nullableType, in SystemTypeValue underlyingTypeValue)
 		{

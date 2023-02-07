@@ -5,9 +5,12 @@
 using System;
 #endif
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared
 {
-	static class HashUtils
+	internal static class HashUtils
 	{
 #if NETSTANDARD2_0
 		// This constant is taken from code that Roslyn generates for GetHashCode of records.

@@ -3,9 +3,12 @@
 
 using ILLink.Shared.DataFlow;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared.TrimAnalysis
 {
-	sealed record UnknownValue : SingleValue
+	internal sealed record UnknownValue : SingleValue
 	{
 		private UnknownValue ()
 		{

@@ -8,6 +8,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using ILLink.Shared.TrimAnalysis;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared
 {
 	// Temporary workaround - should be removed once linker can be upgraded to build against
@@ -76,9 +79,9 @@ namespace ILLink.Shared
 			}));
 		}
 
-		static readonly DynamicallyAccessedMemberTypes[] AllDynamicallyAccessedMemberTypes = GetAllDynamicallyAccessedMemberTypes ();
+		private static readonly DynamicallyAccessedMemberTypes[] AllDynamicallyAccessedMemberTypes = GetAllDynamicallyAccessedMemberTypes ();
 
-		static DynamicallyAccessedMemberTypes[] GetAllDynamicallyAccessedMemberTypes ()
+		private static DynamicallyAccessedMemberTypes[] GetAllDynamicallyAccessedMemberTypes ()
 		{
 			var values = new HashSet<DynamicallyAccessedMemberTypes> (
 								Enum.GetValues (typeof (DynamicallyAccessedMemberTypes))
@@ -91,35 +94,35 @@ namespace ILLink.Shared
 		public static (DiagnosticId Id, string[] Arguments) GetDiagnosticForAnnotationMismatch (ValueWithDynamicallyAccessedMembers source, ValueWithDynamicallyAccessedMembers target, string missingAnnotations)
 		{
 			DiagnosticId diagnosticId = (source, target) switch {
+				(MethodParameterValue maybeThisSource, MethodParameterValue maybeThisTarget) when maybeThisSource.IsThisParameter () && maybeThisTarget.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsThisParameter,
+				(MethodParameterValue maybeThis, MethodParameterValue) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsParameter,
+				(MethodParameterValue maybeThis, MethodReturnValue) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsMethodReturnType,
+				(MethodParameterValue maybeThis, FieldValue) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsField,
+				(MethodParameterValue maybeThis, GenericParameterValue) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsGenericParameter,
+				(MethodParameterValue, MethodParameterValue maybeThis) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsThisParameter,
 				(MethodParameterValue, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsParameter,
 				(MethodParameterValue, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsMethodReturnType,
 				(MethodParameterValue, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsField,
-				(MethodParameterValue, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsThisParameter,
 				(MethodParameterValue, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchParameterTargetsGenericParameter,
+				(MethodReturnValue, MethodParameterValue maybeThis) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsThisParameter,
 				(MethodReturnValue, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsParameter,
 				(MethodReturnValue, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsMethodReturnType,
 				(MethodReturnValue, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsField,
-				(MethodReturnValue, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsThisParameter,
 				(MethodReturnValue, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchMethodReturnTypeTargetsGenericParameter,
+				(FieldValue, MethodParameterValue maybeThis) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsThisParameter,
 				(FieldValue, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsParameter,
 				(FieldValue, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsMethodReturnType,
 				(FieldValue, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsField,
-				(FieldValue, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsThisParameter,
 				(FieldValue, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchFieldTargetsGenericParameter,
-				(MethodThisParameterValue, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsParameter,
-				(MethodThisParameterValue, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsMethodReturnType,
-				(MethodThisParameterValue, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsField,
-				(MethodThisParameterValue, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsThisParameter,
-				(MethodThisParameterValue, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchThisParameterTargetsGenericParameter,
+				(GenericParameterValue, MethodParameterValue maybeThis) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsThisParameter,
 				(GenericParameterValue, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsParameter,
 				(GenericParameterValue, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsMethodReturnType,
 				(GenericParameterValue, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsField,
-				(GenericParameterValue, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsThisParameter,
 				(GenericParameterValue, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsGenericParameter,
+				(NullableValueWithDynamicallyAccessedMembers, MethodParameterValue maybeThis) when maybeThis.IsThisParameter () => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsThisParameter,
 				(NullableValueWithDynamicallyAccessedMembers, MethodParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsParameter,
 				(NullableValueWithDynamicallyAccessedMembers, MethodReturnValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsMethodReturnType,
 				(NullableValueWithDynamicallyAccessedMembers, FieldValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsField,
-				(NullableValueWithDynamicallyAccessedMembers, MethodThisParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsThisParameter,
 				(NullableValueWithDynamicallyAccessedMembers, GenericParameterValue) => DiagnosticId.DynamicallyAccessedMembersMismatchTypeArgumentTargetsGenericParameter,
 
 				_ => throw new NotImplementedException ($"Unsupported source context {source} or target context {target}.")

@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation and contributors. All rights reserved.
+// Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -106,7 +106,7 @@ namespace Mono.Linker.Tests.TestCasesRunner
 			};
 		}
 
-		private IEnumerable<NPath> CompileBeforeTestCaseAssemblies (NPath outputDirectory, NPath[] references, string[] defines, IList<NPath> removeFromLinkerInputAssemblies)
+		private IEnumerable<NPath> CompileBeforeTestCaseAssemblies (NPath outputDirectory, NPath[] references, string[] defines, List<NPath> removeFromLinkerInputAssemblies)
 		{
 			foreach (var setupCompileInfo in _metadataProvider.GetSetupCompileAssembliesBefore ()) {
 				NPath outputFolder;
@@ -134,7 +134,7 @@ namespace Mono.Linker.Tests.TestCasesRunner
 			}
 		}
 
-		private void CompileAfterTestCaseAssemblies (NPath outputDirectory, NPath[] references, string[] defines, IList<NPath> removeFromLinkerInputAssemblies)
+		private void CompileAfterTestCaseAssemblies (NPath outputDirectory, NPath[] references, string[] defines, List<NPath> removeFromLinkerInputAssemblies)
 		{
 			foreach (var setupCompileInfo in _metadataProvider.GetSetupCompileAssembliesAfter ()) {
 				var options = CreateOptionsForSupportingAssembly (
@@ -251,6 +251,9 @@ namespace Mono.Linker.Tests.TestCasesRunner
 					case "/optimize+":
 						compilationOptions = compilationOptions.WithOptimizationLevel (OptimizationLevel.Release);
 						break;
+					case "/optimize-":
+						compilationOptions = compilationOptions.WithOptimizationLevel (OptimizationLevel.Debug);
+						break;
 					case "/debug:full":
 					case "/debug:pdbonly":
 						// Use platform's default debug info. This behavior is the same as csc.
@@ -267,7 +270,14 @@ namespace Mono.Linker.Tests.TestCasesRunner
 					case "/langversion:7.3":
 						languageVersion = LanguageVersion.CSharp7_3;
 						break;
-
+					default:
+						var splitIndex = option.IndexOf (":");
+						if (splitIndex != -1 && option[..splitIndex] == "/main") {
+							var mainTypeName = option[(splitIndex + 1)..];
+							compilationOptions = compilationOptions.WithMainTypeName (mainTypeName);
+							break;
+						}
+						throw new NotImplementedException (option);
 					}
 				}
 			}

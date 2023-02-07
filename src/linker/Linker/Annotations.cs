@@ -436,6 +436,9 @@ namespace Mono.Linker
 			return public_api.Contains (provider);
 		}
 
+		/// <summary>
+		/// Returns a list of all known methods that override <paramref name="method"/>. The list may be incomplete if other overrides exist in assemblies that haven't been processed by TypeMapInfo yet
+		/// </summary>
 		public IEnumerable<OverrideInformation>? GetOverrides (MethodDefinition method)
 		{
 			return TypeMapInfo.GetOverrides (method);
@@ -446,7 +449,14 @@ namespace Mono.Linker
 			return TypeMapInfo.GetDefaultInterfaceImplementations (method);
 		}
 
-		public List<MethodDefinition>? GetBaseMethods (MethodDefinition method)
+		/// <summary>
+		/// Returns all base methods that <paramref name="method"/> overrides.
+		/// This includes methods on <paramref name="method"/>'s declaring type's base type (but not methods higher up in the type hierarchy),
+		/// methods on an interface that <paramref name="method"/>'s delcaring type implements,
+		/// and methods an interface implemented by a derived type of <paramref name="method"/>'s declaring type if the derived type uses <paramref name="method"/> as the implementing method.
+		/// The list may be incomplete if there are derived types in assemblies that havent been processed yet that use <paramref name="method"/> to implement an interface.
+		/// </summary>
+		public List<OverrideInformation>? GetBaseMethods (MethodDefinition method)
 		{
 			return TypeMapInfo.GetBaseMethods (method);
 		}
@@ -591,44 +601,34 @@ namespace Mono.Linker
 		/// Determines if method is within a declared RUC scope - this typically means that trim analysis
 		/// warnings should be suppressed in such a method.
 		/// </summary>
-		/// <remarks>Unlike <see cref="DoesMemberRequireUnreferencedCode(IMemberDefinition, out RequiresUnreferencedCodeAttribute?)"/>
+		/// <remarks>Unlike <see cref="DoesMethodRequireUnreferencedCode(IMemberDefinition, out RequiresUnreferencedCodeAttribute?)"/>
 		/// if a declaring type has RUC, all methods in that type are considered "in scope" of that RUC. So this includes also
 		/// instance methods (not just statics and .ctors).</remarks>
-		internal bool IsInRequiresUnreferencedCodeScope (MethodDefinition method)
+		internal bool IsInRequiresUnreferencedCodeScope (MethodDefinition method, [NotNullWhen (true)] out RequiresUnreferencedCodeAttribute? attribute)
 		{
-			if (HasLinkerAttribute<RequiresUnreferencedCodeAttribute> (method) && !method.IsStaticConstructor ())
+			if (TryGetLinkerAttribute (method, out attribute) && !method.IsStaticConstructor ())
 				return true;
 
-			if (method.DeclaringType is not null && HasLinkerAttribute<RequiresUnreferencedCodeAttribute> (method.DeclaringType))
+			if (method.DeclaringType is not null && TryGetLinkerAttribute (method.DeclaringType, out attribute))
 				return true;
 
+			attribute = null;
 			return false;
 		}
 
-		/// <summary>
-		/// Determines if a member requires unreferenced code (and thus any usage of such method should be warned about).
-		/// </summary>
-		/// <remarks>Unlike <see cref="IsInRequiresUnreferencedCodeScope(MethodDefinition)"/> only static methods 
-		/// and .ctors are reported as requiring unreferenced code when the declaring type has RUC on it.</remarks>
-		internal bool DoesMemberRequireUnreferencedCode (IMemberDefinition member, [NotNullWhen (returnValue: true)] out RequiresUnreferencedCodeAttribute? attribute)
+		internal bool ShouldSuppressAnalysisWarningsForRequiresUnreferencedCode (ICustomAttributeProvider? originMember, [NotNullWhen (true)] out RequiresUnreferencedCodeAttribute? attribute)
 		{
 			attribute = null;
-			return member switch {
-				MethodDefinition method => DoesMethodRequireUnreferencedCode (method, out attribute),
-				FieldDefinition field => DoesFieldRequireUnreferencedCode (field, out attribute),
-				_ => false
-			};
-		}
-
-		internal bool ShouldSuppressAnalysisWarningsForRequiresUnreferencedCode (ICustomAttributeProvider? originMember)
-		{
 			// Check if the current scope method has RequiresUnreferencedCode on it
 			// since that attribute automatically suppresses all trim analysis warnings.
 			// Check both the immediate origin method as well as suppression context method
 			// since that will be different for compiler generated code.
 			if (originMember is MethodDefinition &&
-				IsInRequiresUnreferencedCodeScope ((MethodDefinition) originMember))
+				IsInRequiresUnreferencedCodeScope ((MethodDefinition) originMember, out attribute))
 				return true;
+
+			if (originMember is FieldDefinition field)
+				return DoesFieldRequireUnreferencedCode (field, out attribute);
 
 			if (originMember is not IMemberDefinition member)
 				return false;
@@ -636,7 +636,7 @@ namespace Mono.Linker
 			MethodDefinition? owningMethod;
 			while (context.CompilerGeneratedState.TryGetOwningMethodForCompilerGeneratedMember (member, out owningMethod)) {
 				Debug.Assert (owningMethod != member);
-				if (IsInRequiresUnreferencedCodeScope (owningMethod))
+				if (IsInRequiresUnreferencedCodeScope (owningMethod, out attribute))
 					return true;
 				member = owningMethod;
 			}
@@ -644,15 +644,16 @@ namespace Mono.Linker
 			return false;
 		}
 
+		/// <summary>
+		/// Determines if a method requires unreferenced code (and thus any usage of such method should be warned about).
+		/// </summary>
+		/// <remarks>Unlike <see cref="IsInRequiresUnreferencedCodeScope(MethodDefinition)"/> only static methods
+		/// and .ctors are reported as requiring unreferenced code when the declaring type has RUC on it.</remarks>
 		internal bool DoesMethodRequireUnreferencedCode (MethodDefinition originalMethod, [NotNullWhen (returnValue: true)] out RequiresUnreferencedCodeAttribute? attribute)
 		{
 			MethodDefinition? method = originalMethod;
 			do {
-				if (method.IsStaticConstructor ()) {
-					attribute = null;
-					return false;
-				}
-				if (TryGetLinkerAttribute (method, out attribute))
+				if (!method.IsStaticConstructor () && TryGetLinkerAttribute (method, out attribute))
 					return true;
 
 				if ((method.IsStatic || method.IsConstructor) && method.DeclaringType is not null &&
@@ -660,6 +661,7 @@ namespace Mono.Linker
 					return true;
 			} while (context.CompilerGeneratedState.TryGetOwningMethodForCompilerGeneratedMember (method, out method));
 
+			attribute = null;
 			return false;
 		}
 
@@ -673,12 +675,28 @@ namespace Mono.Linker
 			return TryGetLinkerAttribute (field.DeclaringType, out attribute);
 		}
 
+		/// <Summary>
+		/// Adds a virtual method to the queue if it is annotated and must have matching annotations on its bases and overrides. It does not check if the method is marked before producing a warning about mismatched annotations.
+		/// </summary>
 		public void EnqueueVirtualMethod (MethodDefinition method)
 		{
 			if (!method.IsVirtual)
 				return;
 
-			if (FlowAnnotations.RequiresDataFlowAnalysis (method) || HasLinkerAttribute<RequiresUnreferencedCodeAttribute> (method))
+			// Implementations of static interface methods are not virtual and won't reach here
+			// We'll search through the implementations of static interface methods to find if any need to be enqueued
+			if (method.IsStatic) {
+				Debug.Assert (method.DeclaringType.IsInterface);
+				var overrides = GetOverrides (method);
+				if (overrides is not null) {
+					foreach (var @override in overrides) {
+						if (FlowAnnotations.RequiresVirtualMethodDataFlowAnalysis (@override.Override) || HasLinkerAttribute<RequiresUnreferencedCodeAttribute> (@override.Override))
+							VirtualMethodsWithAnnotationsToValidate.Add (@override.Override);
+					}
+				}
+			}
+
+			if (FlowAnnotations.RequiresVirtualMethodDataFlowAnalysis (method) || HasLinkerAttribute<RequiresUnreferencedCodeAttribute> (method))
 				VirtualMethodsWithAnnotationsToValidate.Add (method);
 		}
 	}

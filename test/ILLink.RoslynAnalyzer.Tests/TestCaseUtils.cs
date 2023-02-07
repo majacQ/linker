@@ -25,10 +25,10 @@ namespace ILLink.RoslynAnalyzer.Tests
 		private static readonly string MonoLinkerTestsCases = "Mono.Linker.Tests.Cases";
 
 		public static readonly ReferenceAssemblies Net6PreviewAssemblies =
-			new ReferenceAssemblies (
-				"net7.0",
-				new PackageIdentity ("Microsoft.NETCore.App.Ref", "7.0.0-preview.2.22152.2"),
-				Path.Combine ("ref", "net7.0"))
+		new ReferenceAssemblies (
+				"net8.0",
+				new PackageIdentity ("Microsoft.NETCore.App.Ref", "8.0.0-alpha.1.23060.19"),
+				Path.Combine ("ref", "net8.0"))
 			.WithNuGetConfigFilePath (Path.Combine (TestCaseUtils.GetRepoRoot (), "NuGet.config"));
 
 		private static ImmutableArray<MetadataReference> s_net6Refs;

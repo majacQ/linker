@@ -1,6 +1,11 @@
 // Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
+using System;
+
 namespace ILLink.Shared
 {
 	public enum DiagnosticId
@@ -52,6 +57,7 @@ namespace ILLink.Shared
 		CouldNotResolveCustomAttributeTypeValue = 1044,
 		UnexpectedAttributeArgumentType = 1045,
 		InvalidMetadataOption = 1046,
+		InvalidDependenciesFileFormat = 1047,
 
 		// Linker diagnostic ids.
 		TypeHasNoFieldsToPreserve = 2001,
@@ -176,6 +182,10 @@ namespace ILLink.Shared
 		DynamicallyAccessedMembersOnTypeReferencesMemberOnBaseWithDynamicallyAccessedMembers = 2115,
 		RequiresUnreferencedCodeOnStaticConstructor = 2116,
 		MethodsAreAssociatedWithUserMethod = 2117,
+		CompilerGeneratedMemberAccessedViaReflection = 2118,
+		DynamicallyAccessedMembersOnTypeReferencesCompilerGeneratedMember = 2119,
+		DynamicallyAccessedMembersOnTypeReferencesCompilerGeneratedMemberOnBase = 2120,
+		RedundantSuppression = 2121,
 
 		// Single-file diagnostic ids.
 		AvoidAssemblyLocationInSingleFile = 3000,
@@ -212,10 +222,18 @@ namespace ILLink.Shared
 				2103 => MessageSubCategory.TrimAnalysis,
 				2106 => MessageSubCategory.TrimAnalysis,
 				2107 => MessageSubCategory.TrimAnalysis,
-				>= 2109 and <= 2116 => MessageSubCategory.TrimAnalysis,
+				>= 2109 and <= 2121 => MessageSubCategory.TrimAnalysis,
 				>= 3050 and <= 3052 => MessageSubCategory.AotAnalysis,
 				>= 3054 and <= 3055 => MessageSubCategory.AotAnalysis,
 				_ => MessageSubCategory.None,
+			};
+
+		public static string GetDiagnosticCategory (this DiagnosticId diagnosticId) =>
+			(int) diagnosticId switch {
+				> 2000 and < 3000 => DiagnosticCategory.Trimming,
+				>= 3000 and < 3050 => DiagnosticCategory.SingleFile,
+				>= 3050 and <= 6000 => DiagnosticCategory.AOT,
+				_ => throw new ArgumentException ($"The provided diagnostic id '{diagnosticId}' does not fall into the range of supported warning codes 2001 to 6000 (inclusive).")
 			};
 	}
 }

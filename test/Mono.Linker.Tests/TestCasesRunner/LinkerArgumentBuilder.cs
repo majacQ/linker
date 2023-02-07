@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation and contributors. All rights reserved.
+// Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
@@ -61,6 +61,7 @@ namespace Mono.Linker.Tests.TestCasesRunner
 		{
 			Append ("-a");
 			Append (fileName);
+			Append ("entrypoint");
 		}
 
 		public virtual void LinkFromPublicAndFamily (string fileName)
@@ -97,12 +98,6 @@ namespace Mono.Linker.Tests.TestCasesRunner
 		{
 			Append ("-l");
 			Append (value);
-		}
-
-		public virtual void AddKeepTypeForwarderOnlyAssemblies (string value)
-		{
-			if (bool.Parse (value))
-				Append ("-t");
 		}
 
 		public virtual void AddLinkSymbols (string value)
@@ -220,9 +215,6 @@ namespace Mono.Linker.Tests.TestCasesRunner
 			if (!string.IsNullOrEmpty (options.Il8n))
 				AddIl8n (options.Il8n);
 #endif
-
-			if (!string.IsNullOrEmpty (options.KeepTypeForwarderOnlyAssemblies))
-				AddKeepTypeForwarderOnlyAssemblies (options.KeepTypeForwarderOnlyAssemblies);
 
 			if (!string.IsNullOrEmpty (options.LinkSymbols))
 				AddLinkSymbols (options.LinkSymbols);

@@ -8,19 +8,31 @@ namespace ILLink.RoslynAnalyzer.Tests
 	{
 
 		[Fact]
+		public Task GenericParameterWarningLocation ()
+		{
+			return RunTest (allowMissingWarnings: true);
+		}
+
+		[Fact]
 		public Task MethodByRefParameterDataFlow ()
 		{
 			return RunTest (allowMissingWarnings: true);
 		}
 
 		[Fact]
-		public Task MethodByRefReturnDataFlow ()
+		public Task MethodOutParameterDataFlow ()
 		{
 			return RunTest (allowMissingWarnings: true);
 		}
 
 		[Fact]
-		public Task MethodOutParameterDataFlow ()
+		public Task StaticInterfaceMethodDataflow ()
+		{
+			return RunTest (allowMissingWarnings: true);
+		}
+
+		[Fact]
+		public Task TypeInfoIntrinsics ()
 		{
 			return RunTest (allowMissingWarnings: true);
 		}

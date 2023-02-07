@@ -3,12 +3,15 @@
 
 using ILLink.Shared.DataFlow;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared.TrimAnalysis
 {
 	/// <summary>
 	/// A known string - such as the result of a ldstr.
 	/// </summary>
-	sealed partial record KnownStringValue : SingleValue
+	internal sealed partial record KnownStringValue : SingleValue
 	{
 		public KnownStringValue (string contents) => Contents = contents;
 

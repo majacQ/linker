@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Mono.Linker.Tests.Cases.Expectations.Assertions;
+using Mono.Linker.Tests.Cases.Expectations.Helpers;
 
 namespace Mono.Linker.Tests.Cases.DataFlow
 {
@@ -38,6 +39,9 @@ namespace Mono.Linker.Tests.Cases.DataFlow
 			_ = _annotationOnWrongType;
 
 			TestStringEmpty ();
+
+			WriteArrayField.Test ();
+			AccessReturnedInstanceField.Test ();
 		}
 
 		[DynamicallyAccessedMembers (DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
@@ -139,7 +143,7 @@ namespace Mono.Linker.Tests.Cases.DataFlow
 			TypeStore._staticTypeWithPublicParameterlessConstructor = GetUnknownType ();
 		}
 
-		[ExpectedWarning ("IL2064", nameof (TypeStore) + "." + nameof (TypeStore._staticTypeWithPublicParameterlessConstructor), ProducedBy = ProducedBy.Trimmer)]
+		[ExpectedWarning ("IL2064", nameof (TypeStore) + "." + nameof (TypeStore._staticTypeWithPublicParameterlessConstructor))]
 		private void WriteUnknownValue ()
 		{
 			var array = new object[1];
@@ -187,6 +191,45 @@ namespace Mono.Linker.Tests.Cases.DataFlow
 				TestNullCoalesce ();
 				TestNullCoalescingAssignment ();
 				TestNullCoalescingAssignmentComplex ();
+			}
+		}
+
+		class AccessReturnedInstanceField
+		{
+			[DynamicallyAccessedMembers (DynamicallyAccessedMemberTypes.PublicMethods)]
+			Type field;
+
+			static AccessReturnedInstanceField GetInstance ([DynamicallyAccessedMembers (DynamicallyAccessedMemberTypes.All)] Type unused) => null;
+
+			[ExpectedWarning ("IL2072", nameof (GetUnknownType), nameof (GetInstance),
+				ProducedBy = ProducedBy.Trimmer | ProducedBy.NativeAot)] // https://github.com/dotnet/linker/issues/2832
+			[ExpectedWarning ("IL2077", nameof (field), nameof (DataFlowTypeExtensions.RequiresAll))]
+			static void TestRead ()
+			{
+				GetInstance (GetUnknownType ()).field.RequiresAll ();
+			}
+
+			[ExpectedWarning ("IL2072", nameof (GetUnknownType), nameof (GetInstance),
+				ProducedBy = ProducedBy.Trimmer | ProducedBy.NativeAot)] // https://github.com/dotnet/linker/issues/2832
+			[ExpectedWarning ("IL2074", nameof (GetUnknownType), nameof (field))]
+			static void TestWrite ()
+			{
+				GetInstance (GetUnknownType ()).field = GetUnknownType ();
+			}
+
+			[ExpectedWarning ("IL2072", nameof (GetUnknownType), nameof (GetInstance),
+				ProducedBy = ProducedBy.Trimmer | ProducedBy.NativeAot)] // https://github.com/dotnet/linker/issues/2832
+			[ExpectedWarning ("IL2074", nameof (GetUnknownType), nameof (field))]
+			static void TestNullCoalescingAssignment ()
+			{
+				GetInstance (GetUnknownType ()).field ??= GetUnknownType ();
+			}
+
+			public static void Test ()
+			{
+				TestRead ();
+				TestWrite ();
+				TestNullCoalescingAssignment ();
 			}
 		}
 
@@ -248,6 +291,27 @@ namespace Mono.Linker.Tests.Cases.DataFlow
 
 			[DynamicallyAccessedMembers (DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
 			public static Type _staticTypeWithPublicParameterlessConstructor;
+		}
+
+		class WriteArrayField
+		{
+			static Type[] ArrayField;
+
+			static void TestAssignment ()
+			{
+				ArrayField = Array.Empty<Type> ();
+			}
+
+			static void TestCoalescingAssignment ()
+			{
+				ArrayField ??= Array.Empty<Type> ();
+			}
+
+			public static void Test ()
+			{
+				TestAssignment ();
+				TestCoalescingAssignment ();
+			}
 		}
 	}
 }

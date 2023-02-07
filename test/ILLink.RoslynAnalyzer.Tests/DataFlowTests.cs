@@ -59,13 +59,49 @@ namespace ILLink.RoslynAnalyzer.Tests
 		}
 
 		[Fact]
+		public Task CompilerGeneratedCodeDataflow ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
+		public Task CompilerGeneratedCodeInPreservedAssembly ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
+		public Task CompilerGeneratedCodeInPreservedAssemblyWithWarning ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
 		public Task CompilerGeneratedTypes ()
 		{
 			return RunTest ();
 		}
 
 		[Fact]
+		public Task CompilerGeneratedTypesRelease ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
 		public Task ComplexTypeHandling ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
+		public Task CompilerGeneratedCodeAccessedViaReflection ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
+		public Task ConstructedTypesDataFlow ()
 		{
 			return RunTest ();
 		}
@@ -84,6 +120,12 @@ namespace ILLink.RoslynAnalyzer.Tests
 		}
 
 		[Fact]
+		public Task EventDataFlow ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
 		public Task FieldDataFlow ()
 		{
 			return RunTest (nameof (FieldDataFlow));
@@ -97,6 +139,12 @@ namespace ILLink.RoslynAnalyzer.Tests
 
 		[Fact]
 		public Task MakeGenericDataFlow ()
+		{
+			return RunTest ();
+		}
+
+		[Fact]
+		public Task MethodByRefReturnDataFlow ()
 		{
 			return RunTest ();
 		}
@@ -209,6 +257,12 @@ namespace ILLink.RoslynAnalyzer.Tests
 		public Task PropertyDataFlow ()
 		{
 			return RunTest (nameof (PropertyDataFlow));
+		}
+
+		[Fact]
+		public Task RefFieldDataFlow ()
+		{
+			return RunTest (nameof (RefFieldDataFlow));
 		}
 
 		[Fact (Skip = "https://github.com/dotnet/linker/issues/2273")]

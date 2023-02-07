@@ -69,8 +69,7 @@ namespace Mono.Linker
 				if (attributeValue == null)
 					continue;
 
-				if (cache == null)
-					cache = new List<(Type Type, List<Attribute> Attributes)> ();
+				cache ??= new List<(Type Type, List<Attribute> Attributes)> ();
 
 				Type attributeValueType = attributeValue.GetType ();
 
@@ -107,7 +106,7 @@ namespace Mono.Linker
 			return attributeList.Cast<T> ();
 		}
 
-		static Attribute? ProcessRequiresUnreferencedCodeAttribute (LinkContext context, ICustomAttributeProvider provider, CustomAttribute customAttribute)
+		static RequiresUnreferencedCodeAttribute? ProcessRequiresUnreferencedCodeAttribute (LinkContext context, ICustomAttributeProvider provider, CustomAttribute customAttribute)
 		{
 			if (!(provider is MethodDefinition || provider is TypeDefinition))
 				return null;

@@ -4,12 +4,15 @@
 using ILLink.Shared.DataFlow;
 using ILLink.Shared.TypeSystemProxy;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared.TrimAnalysis
 {
 	/// <summary>
 	/// This is the System.RuntimeMethodHandle equivalent to a <see cref="SystemReflectionMethodBaseValue"/> node.
 	/// </summary>
-	sealed partial record RuntimeMethodHandleValue : SingleValue
+	internal sealed partial record RuntimeMethodHandleValue : SingleValue
 	{
 		public RuntimeMethodHandleValue (in MethodProxy representedMethod)
 		{

@@ -8,7 +8,7 @@ using TLens.Analyzers;
 
 namespace TLens
 {
-	class Runner
+	sealed class Runner
 	{
 		readonly List<Analyzer> analyzers = new List<Analyzer> ();
 
@@ -32,11 +32,7 @@ namespace TLens
 			bool first = true;
 			foreach (var a in analyzers) {
 				foreach (var assembly in assemblies) {
-					try {
-						a.ProcessAssembly (assembly);
-					} catch (Exception e) {
-						throw new ApplicationException ($"Internal error when analyzing '{assembly.FullName}' assembly with '{a.GetType ()}'", e);
-					}
+					a.ProcessAssembly (assembly);
 				}
 
 				if (!first)

@@ -4,11 +4,14 @@
 using ILLink.Shared.DataFlow;
 using MultiValue = ILLink.Shared.DataFlow.ValueSet<ILLink.Shared.DataFlow.SingleValue>;
 
+// This is needed due to NativeAOT which doesn't enable nullable globally yet
+#nullable enable
+
 namespace ILLink.Shared.TrimAnalysis
 {
-	sealed partial record ArrayValue : SingleValue
+	internal sealed partial record ArrayValue : SingleValue
 	{
-		static ValueSetLattice<SingleValue> MultiValueLattice => default;
+		private static ValueSetLattice<SingleValue> MultiValueLattice => default;
 
 		public readonly SingleValue Size;
 

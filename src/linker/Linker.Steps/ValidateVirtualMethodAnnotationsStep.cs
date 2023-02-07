@@ -13,11 +13,11 @@ namespace Mono.Linker.Steps
 		{
 			var annotations = Context.Annotations;
 			foreach (var method in annotations.VirtualMethodsWithAnnotationsToValidate) {
-				var baseMethods = annotations.GetBaseMethods (method);
-				if (baseMethods != null) {
-					foreach (var baseMethod in baseMethods) {
-						annotations.FlowAnnotations.ValidateMethodAnnotationsAreSame (method, baseMethod);
-						ValidateMethodRequiresUnreferencedCodeAreSame (method, baseMethod);
+				var baseOverrideInformations = annotations.GetBaseMethods (method);
+				if (baseOverrideInformations != null) {
+					foreach (var baseOv in baseOverrideInformations) {
+						annotations.FlowAnnotations.ValidateMethodAnnotationsAreSame (method, baseOv.Base);
+						ValidateMethodRequiresUnreferencedCodeAreSame (method, baseOv.Base);
 					}
 				}
 
@@ -40,8 +40,8 @@ namespace Mono.Linker.Steps
 		void ValidateMethodRequiresUnreferencedCodeAreSame (MethodDefinition method, MethodDefinition baseMethod)
 		{
 			var annotations = Context.Annotations;
-			bool methodHasAttribute = annotations.IsInRequiresUnreferencedCodeScope (method);
-			if (methodHasAttribute != annotations.IsInRequiresUnreferencedCodeScope (baseMethod)) {
+			bool methodHasAttribute = annotations.IsInRequiresUnreferencedCodeScope (method, out _);
+			if (methodHasAttribute != annotations.IsInRequiresUnreferencedCodeScope (baseMethod, out _)) {
 				string message = MessageFormat.FormatRequiresAttributeMismatch (methodHasAttribute,
 					baseMethod.DeclaringType.IsInterface, nameof (RequiresUnreferencedCodeAttribute), method.GetDisplayName (), baseMethod.GetDisplayName ());
 				Context.LogWarning (method, DiagnosticId.RequiresUnreferencedCodeAttributeMismatch, message);

@@ -58,6 +58,19 @@ namespace ILLink.RoslynAnalyzer
 			return (DynamicallyAccessedMemberTypes) dynamicallyAccessedMembers.ConstructorArguments[0].Value!;
 		}
 
+		internal static bool TryGetReturnAttribute (this IMethodSymbol member, string attributeName, [NotNullWhen (returnValue: true)] out AttributeData? attribute)
+		{
+			attribute = null;
+			foreach (var attr in member.GetReturnTypeAttributes ()) {
+				if (attr.AttributeClass is { } attrClass && attrClass.HasName (attributeName)) {
+					attribute = attr;
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		internal static DynamicallyAccessedMemberTypes GetDynamicallyAccessedMemberTypesOnAssociatedSymbol (this IMethodSymbol methodSymbol) =>
 			methodSymbol.AssociatedSymbol is ISymbol associatedSymbol ? GetDynamicallyAccessedMemberTypes (associatedSymbol) : DynamicallyAccessedMemberTypes.None;
 
@@ -157,7 +170,7 @@ namespace ILLink.RoslynAnalyzer
 		}
 
 		public static bool IsConstructor ([NotNullWhen (returnValue: true)] this ISymbol? symbol)
-			=> (symbol as IMethodSymbol)?.MethodKind == MethodKind.Constructor;
+			=> (symbol as IMethodSymbol)?.MethodKind is MethodKind.Constructor or MethodKind.StaticConstructor;
 
 		public static bool IsStaticConstructor ([NotNullWhen (returnValue: true)] this ISymbol? symbol)
 			=> (symbol as IMethodSymbol)?.MethodKind == MethodKind.StaticConstructor;

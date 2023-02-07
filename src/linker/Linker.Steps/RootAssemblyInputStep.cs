@@ -42,11 +42,6 @@ namespace Mono.Linker.Steps
 			}
 
 			switch (rootMode) {
-			case AssemblyRootMode.Default:
-				if (assembly.MainModule.Kind == ModuleKind.Dll)
-					goto case AssemblyRootMode.AllMembers;
-				else
-					goto case AssemblyRootMode.EntryPoint;
 			case AssemblyRootMode.EntryPoint:
 				var ep = assembly.MainModule.EntryPoint;
 				if (ep == null) {
@@ -142,6 +137,12 @@ namespace Mono.Linker.Steps
 
 			if ((preserve & TypePreserveMembers.Internal) != 0 && IsTypePrivate (type))
 				preserve_anything &= ~TypePreserveMembers.Internal;
+
+			// Keep all interfaces and interface members in library mode
+			if ((preserve & TypePreserveMembers.Library) != 0 && type.IsInterface) {
+				Annotations.Mark (type, new DependencyInfo (DependencyKind.RootAssembly, type.Module.Assembly), new MessageOrigin (type.Module.Assembly));
+				Annotations.SetPreserve (type, TypePreserve.All);
+			}
 
 			switch (preserve_anything) {
 			case 0:
